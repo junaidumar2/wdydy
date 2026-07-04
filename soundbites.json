@@ -1,5 +1,18 @@
 {
   "title": "My Soundboard",
-  "version": 1,
-  "sounds": []
+  "version": 3,
+  "sounds": [
+    {
+      "id": "dod-laugh",
+      "label": "DOD laugh",
+      "emoji": "🔊",
+      "file": "sounds/dod-laugh.mp3"
+    },
+    {
+      "id": "max-fan-mail-jodphur",
+      "label": "jodhpur",
+      "emoji": "🔊",
+      "file": "sounds/max-fan-mail-jodphur.mp3"
+    }
+  ]
 }
