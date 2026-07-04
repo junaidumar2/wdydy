@@ -1,0 +1,482 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#26221E">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<title>My Soundboard</title>
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="apple-touch-icon" href="icon-180.png">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Archivo:wdth,wght@62..125,400..900&family=IBM+Plex+Mono:wght@400;600&display=swap" rel="stylesheet">
+<style>
+:root{
+  --console:#26221E; --panel:#1B1712; --well:#141009; --ink:#20150C;
+  --cream:#F2E9DA; --dim:#9C8F7C; --lampred:#FF4B33;
+}
+*{box-sizing:border-box}
+html{-webkit-text-size-adjust:100%}
+body{
+  margin:0; background:var(--console); color:var(--cream);
+  font-family:'Archivo',system-ui,-apple-system,'Segoe UI',sans-serif;
+  background-image:repeating-linear-gradient(90deg, rgba(255,255,255,.012) 0 1px, transparent 1px 3px);
+  padding-bottom:env(safe-area-inset-bottom);
+  min-height:100vh; display:flex; flex-direction:column;
+}
+/* ---------- console header ---------- */
+header.console{
+  position:sticky; top:0; z-index:5;
+  background:linear-gradient(var(--panel), var(--console));
+  border-bottom:1px solid #000;
+  box-shadow:inset 0 1px 0 rgba(255,255,255,.05), 0 2px 8px rgba(0,0,0,.35);
+  padding:12px 16px 12px; padding-top:calc(12px + env(safe-area-inset-top));
+}
+.row{display:flex; flex-wrap:wrap; align-items:center; gap:10px; max-width:1100px; margin:0 auto}
+.row.top{margin-bottom:10px}
+h1{
+  flex:1; margin:0; font-weight:900; font-stretch:118%;
+  text-transform:uppercase; letter-spacing:.02em;
+  font-size:clamp(19px, 4vw, 28px); line-height:1; min-width:140px;
+}
+.mono{font-family:'IBM Plex Mono',ui-monospace,monospace}
+.count{font-size:11px; letter-spacing:.22em; color:var(--dim); white-space:nowrap}
+/* ON AIR lamp — lights while anything plays */
+.lamp{
+  display:flex; align-items:center; gap:9px;
+  background:var(--well); border:1px solid #000; border-radius:9px;
+  padding:7px 13px; box-shadow:inset 0 2px 5px rgba(0,0,0,.6);
+}
+.bulb{
+  width:12px; height:12px; border-radius:50%;
+  background:#4a221b; box-shadow:inset 0 0 3px #000;
+  transition:background .15s, box-shadow .15s;
+}
+.lamp.on .bulb{
+  background:var(--lampred);
+  box-shadow:0 0 14px 3px rgba(255,75,51,.65), inset 0 0 2px rgba(255,255,255,.6);
+  animation:hum 2.2s infinite;
+}
+@keyframes hum{0%,100%{opacity:1}50%{opacity:.86}}
+.lamp-text{font-family:'IBM Plex Mono',monospace; font-size:11px; letter-spacing:.28em; color:var(--dim); transition:color .15s}
+.lamp.on .lamp-text{color:#FFB4A6}
+/* controls */
+.ctl-label{font-size:11px; letter-spacing:.18em; text-transform:uppercase; color:var(--dim); margin-right:2px}
+.speed{display:flex; align-items:center; gap:8px}
+.seg{display:flex; gap:2px; background:var(--well); border:1px solid #000; border-radius:9px; padding:3px}
+.seg button{
+  font-family:'IBM Plex Mono',monospace; font-size:12px; padding:5px 9px;
+  border:0; border-radius:6px; background:transparent; color:var(--dim); cursor:pointer;
+}
+.seg button[aria-pressed="true"]{background:#F2B33D; color:var(--ink); font-weight:600}
+.chip{display:inline-flex; cursor:pointer}
+.chip input{position:absolute; opacity:0; width:0; height:0}
+.chip span{
+  font-family:'IBM Plex Mono',monospace; font-size:12px; color:var(--dim);
+  background:var(--well); border:1px solid #000; border-radius:9px; padding:8px 12px;
+  transition:background .1s, color .1s;
+}
+.chip input:checked + span{background:#63B995; color:var(--ink); font-weight:600}
+.chip input:focus-visible + span, .seg button:focus-visible, .stop:focus-visible, .btn:focus-visible{outline:3px solid var(--cream); outline-offset:2px}
+.stop{
+  font-family:'IBM Plex Mono',monospace; font-size:12px; cursor:pointer;
+  background:#3A1E17; color:#FFB4A6; border:1px solid #000; border-radius:9px; padding:8px 13px;
+}
+.stop:active{transform:translateY(1px)}
+.filter{
+  flex:1; min-width:130px; max-width:230px; font-size:13px;
+  background:var(--well); border:1px solid #000; border-radius:9px;
+  color:var(--cream); padding:8px 12px;
+}
+.filter::placeholder{color:var(--dim)}
+/* ---------- notices ---------- */
+#notice{max-width:1100px; margin:0 auto; width:100%}
+.notice{
+  margin:16px 16px 0; padding:13px 16px; border-radius:11px;
+  background:rgba(242,179,61,.09); border:1px solid rgba(242,179,61,.35);
+  font-size:13.5px; line-height:1.5;
+}
+.notice.card{background:var(--panel); border:1px solid #000; padding:22px 20px}
+.notice.card p{margin:.7em 0; color:var(--dim)}
+.notice.card strong{font-size:16px; letter-spacing:.02em}
+.notice pre{
+  background:var(--well); border-radius:8px; padding:11px 13px; overflow-x:auto;
+  font-size:12px; color:#E4C87F; margin:.7em 0;
+}
+.btn{
+  font:inherit; font-weight:800; text-transform:uppercase; letter-spacing:.06em; font-size:13px;
+  background:#F2B33D; color:var(--ink); border:0; border-radius:10px;
+  padding:11px 16px; cursor:pointer;
+  box-shadow:0 4px 0 #B07E1E, 0 6px 10px rgba(0,0,0,.4);
+}
+.btn:active{transform:translateY(3px); box-shadow:0 1px 0 #B07E1E}
+/* ---------- the cart wall ---------- */
+main{flex:1}
+.grid{
+  display:grid; grid-template-columns:repeat(auto-fill, minmax(126px, 1fr));
+  gap:14px; padding:18px 16px 8px; max-width:1100px; margin:0 auto;
+}
+.cart{
+  position:relative; display:grid; justify-items:center; gap:7px;
+  padding:18px 10px 21px; border:0; border-radius:14px; cursor:pointer;
+  background:linear-gradient(rgba(255,255,255,.14), rgba(255,255,255,0) 34%), var(--c);
+  color:var(--ink); font-family:inherit;
+  box-shadow:0 5px 0 var(--edge), 0 8px 14px rgba(0,0,0,.45), inset 0 1px 0 rgba(255,255,255,.35);
+  transition:transform .06s, box-shadow .06s;
+  touch-action:manipulation; -webkit-tap-highlight-color:transparent;
+  -webkit-user-select:none; user-select:none;
+}
+.cart:active{
+  transform:translateY(4px);
+  box-shadow:0 1px 0 var(--edge), 0 3px 6px rgba(0,0,0,.4), inset 0 1px 0 rgba(255,255,255,.25);
+}
+.cart:focus-visible{outline:3px solid var(--cream); outline-offset:3px}
+.cart .emoji{font-size:37px; line-height:1.1; pointer-events:none}
+.cart .label{
+  font-weight:800; font-size:12.5px; letter-spacing:.06em; text-transform:uppercase;
+  text-align:center; line-height:1.2; pointer-events:none; overflow-wrap:anywhere;
+}
+.tape{position:absolute; left:9px; right:9px; bottom:8px; height:4px; border-radius:2px; background:rgba(0,0,0,.16); overflow:hidden; pointer-events:none}
+.tape i{display:block; height:100%; width:0%; background:rgba(0,0,0,.55)}
+body.dl .cart::after{
+  content:"↓"; position:absolute; top:7px; right:9px;
+  font-weight:900; font-size:13px; width:19px; height:19px; line-height:19px;
+  background:rgba(0,0,0,.28); color:#fff; border-radius:50%;
+}
+.cart.err{animation:shake .35s}
+@keyframes shake{25%{transform:translateX(-4px)}75%{transform:translateX(4px)}}
+/* ---------- footer / toast ---------- */
+footer{
+  padding:26px 16px calc(38px + env(safe-area-inset-bottom));
+  text-align:center; font-size:10.5px; letter-spacing:.22em;
+  text-transform:uppercase; color:var(--dim);
+}
+#toast{
+  position:fixed; left:50%; bottom:26px; transform:translateX(-50%) translateY(90px);
+  background:var(--well); color:var(--cream); border:1px solid #000; border-radius:99px;
+  padding:10px 18px; font-size:13px; box-shadow:0 8px 18px rgba(0,0,0,.5);
+  transition:transform .25s; z-index:9; max-width:88vw;
+}
+#toast.show{transform:translateX(-50%) translateY(0)}
+@media (prefers-reduced-motion: reduce){
+  *{animation:none!important; transition:none!important}
+}
+</style>
+</head>
+<body>
+<header class="console">
+  <div class="row top">
+    <div class="lamp" id="lamp" role="status">
+      <span class="bulb"></span><span class="lamp-text" id="lampText">STANDBY</span>
+    </div>
+    <h1 id="boardTitle">My Soundboard</h1>
+    <div class="count mono" id="count"></div>
+  </div>
+  <div class="row controls">
+    <div class="speed" role="group" aria-label="Playback speed">
+      <span class="ctl-label">Speed</span>
+      <div class="seg" id="speedSeg"></div>
+    </div>
+    <label class="chip"><input type="checkbox" id="pitchChk"><span>Keep pitch</span></label>
+    <label class="chip"><input type="checkbox" id="dlChk"><span>Download mode</span></label>
+    <button class="stop" id="stopBtn">Stop all</button>
+    <input id="filter" class="filter mono" type="search" placeholder="Filter carts" hidden>
+  </div>
+</header>
+
+<div id="notice"></div>
+<main><div class="grid" id="grid"></div></main>
+<footer id="foot"></footer>
+<div id="toast" role="status"></div>
+
+<script>
+/* ============ state ============ */
+const CART_COLORS = [
+  ["#F2B33D","#B07E1E"], ["#E4593F","#A03826"], ["#63B995","#3D8266"],
+  ["#7FA8E0","#4F74AC"], ["#C79BE0","#9067AE"], ["#E4C87F","#AD9147"]
+];
+const state = { sounds:[], speed:1, keepPitch:false, dl:false, playing:new Map(), demo:false };
+let seq = 0;
+const el = id => document.getElementById(id);
+const grid = el('grid'), lamp = el('lamp'), lampText = el('lampText');
+
+/* ============ boot ============ */
+async function boot(){
+  buildSpeed(); wire();
+  try{
+    const r = await fetch('soundbites.json?t=' + Date.now(), {cache:'no-store'});
+    if(!r.ok) throw new Error(r.status);
+    const m = await r.json();
+    if(m.title){ document.title = m.title; el('boardTitle').textContent = m.title; }
+    state.sounds = m.sounds || [];
+    if(state.sounds.length === 0) emptyState(); else render(state.sounds);
+  }catch(e){
+    demoMode();
+  }
+  if('serviceWorker' in navigator &&
+     (location.protocol === 'https:' || ['localhost','127.0.0.1'].includes(location.hostname))){
+    navigator.serviceWorker.register('sw.js').catch(()=>{});
+  }
+}
+
+function buildSpeed(){
+  const seg = el('speedSeg');
+  [0.5, 0.75, 1, 1.25, 1.5].forEach(v=>{
+    const b = document.createElement('button');
+    b.textContent = v + '\u00d7';
+    b.setAttribute('aria-pressed', v === 1);
+    b.onclick = ()=>{
+      state.speed = v;
+      seg.querySelectorAll('button').forEach(x=>x.setAttribute('aria-pressed', x === b));
+    };
+    seg.appendChild(b);
+  });
+}
+
+function wire(){
+  el('pitchChk').onchange = e => state.keepPitch = e.target.checked;
+  el('dlChk').onchange = e => { state.dl = e.target.checked; document.body.classList.toggle('dl', state.dl); };
+  el('stopBtn').onclick = stopAll;
+  el('filter').oninput = e => {
+    const q = e.target.value.trim().toLowerCase();
+    grid.querySelectorAll('.cart').forEach(c=>{ c.hidden = !!q && !c.dataset.q.includes(q); });
+  };
+  addEventListener('keydown', e=>{
+    if(e.target.matches('input')) return;
+    if(e.key === 'Escape') return stopAll();
+    const n = '1234567890'.indexOf(e.key);
+    if(n > -1){
+      const c = grid.querySelectorAll('.cart:not([hidden])')[n];
+      if(c) c.click();
+    }
+  });
+}
+
+/* ============ render ============ */
+function hash(s){ let h = 0; for(const c of s) h = (h * 31 + c.charCodeAt(0)) >>> 0; return h; }
+function colorFor(id){ return CART_COLORS[hash(id) % CART_COLORS.length]; }
+function esc(t){ return String(t).replace(/[&<>"']/g, m => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[m])); }
+
+function render(sounds){
+  grid.innerHTML = '';
+  sounds.forEach(s => grid.appendChild(tile(s)));
+  el('count').textContent = sounds.length + (sounds.length === 1 ? ' CART' : ' CARTS');
+  el('filter').hidden = sounds.length < 12;
+  foot();
+}
+
+function tile(s){
+  const [c, edge] = colorFor(s.id || s.label || 'x');
+  const b = document.createElement('button');
+  b.className = 'cart';
+  b.style.setProperty('--c', c);
+  b.style.setProperty('--edge', edge);
+  b.dataset.q = ((s.label || '') + ' ' + (s.id || '')).toLowerCase();
+  b.innerHTML = '<span class="emoji">' + esc(s.emoji || '🔊') + '</span>' +
+                '<span class="label">' + esc(s.label || s.id) + '</span>' +
+                '<span class="tape"><i></i></span>';
+  b.onclick = ()=> state.dl ? download(s) : playSound(s, b);
+  return b;
+}
+
+function foot(){
+  el('foot').textContent = (state.demo ? 'Demo mode · ' : '') + 'Add & manage carts with tools/soundbite.py';
+}
+
+/* ============ playback ============ */
+function playSound(s, btn){
+  if(s.synth) return playDemo(s, btn);
+  const a = new Audio(s.file);
+  a.preservesPitch = state.keepPitch;
+  a.webkitPreservesPitch = state.keepPitch;
+  a.mozPreservesPitch = state.keepPitch;
+  a.playbackRate = state.speed;
+  const token = ++seq;
+  const bar = btn.querySelector('.tape i');
+  a.addEventListener('timeupdate', ()=>{ if(a.duration) bar.style.width = (a.currentTime / a.duration * 100) + '%'; });
+  const done = ()=>{ state.playing.delete(token); bar.style.width = '0%'; lampSync(); };
+  a.addEventListener('ended', done);
+  a.addEventListener('error', ()=>{ done(); btn.classList.add('err'); setTimeout(()=>btn.classList.remove('err'), 500); toast('Could not load ' + (s.file || 'sound')); });
+  state.playing.set(token, { stop: ()=>{ a.pause(); done(); } });
+  lampSync();
+  a.play().catch(()=>done());
+}
+
+function stopAll(){
+  [...state.playing.values()].forEach(p => p.stop());
+  state.playing.clear();
+  lampSync();
+}
+
+function lampSync(){
+  const on = state.playing.size > 0;
+  lamp.classList.toggle('on', on);
+  lampText.textContent = on ? 'ON AIR' : 'STANDBY';
+}
+
+function download(s){
+  if(s.synth) return toast('Demo carts are synthesized in the browser — nothing to download');
+  const a = document.createElement('a');
+  a.href = s.file;
+  a.download = (s.id || 'sound') + s.file.slice(s.file.lastIndexOf('.'));
+  document.body.appendChild(a); a.click(); a.remove();
+}
+
+let toastT;
+function toast(msg){
+  const t = el('toast');
+  t.textContent = msg;
+  t.classList.add('show');
+  clearTimeout(toastT);
+  toastT = setTimeout(()=>t.classList.remove('show'), 2600);
+}
+
+/* ============ empty & demo states ============ */
+function emptyState(){
+  el('notice').innerHTML =
+    '<div class="notice card"><strong>No carts loaded.</strong>' +
+    '<p>Cut your first clip from a terminal (WSL2 / Linux / macOS):</p>' +
+    '<pre class="mono">python3 tools/soundbite.py clip episode.mp3 --start 12:41 --end 12:44 --id first-laugh --emoji 😂</pre>' +
+    '<p>Then refresh this page. Or hear how the board feels with placeholder sounds:</p>' +
+    '<button class="btn" id="demoBtn">Load demo carts</button></div>';
+  el('demoBtn').onclick = ()=>{ el('notice').innerHTML = ''; demoMode(); };
+  el('count').textContent = '0 CARTS';
+  foot();
+}
+
+function demoMode(){
+  state.demo = true;
+  el('notice').innerHTML =
+    '<div class="notice">Demo carts — no <b>soundbites.json</b> found, so these are browser-synthesized placeholders. ' +
+    'Your real clips replace them once the board is set up. Speed and pitch controls work on these too.</div>';
+  state.sounds = DEMO_SET;
+  render(DEMO_SET);
+}
+
+/* ============ demo synth (Web Audio) ============ */
+let AC;
+function ctx(){
+  AC = AC || new (window.AudioContext || window.webkitAudioContext)();
+  if(AC.state === 'suspended') AC.resume();
+  return AC;
+}
+function tone(ac, out, o){
+  const opt = Object.assign({type:'sine', f0:440, f1:0, t0:0, d:.2, g:.5}, o);
+  const osc = ac.createOscillator(), v = ac.createGain();
+  osc.type = opt.type;
+  const T = ac.currentTime + opt.t0;
+  osc.frequency.setValueAtTime(Math.max(opt.f0,1), T);
+  if(opt.f1) osc.frequency.exponentialRampToValueAtTime(Math.max(opt.f1,1), T + opt.d);
+  v.gain.setValueAtTime(0.0001, T);
+  v.gain.linearRampToValueAtTime(opt.g, T + .012);
+  v.gain.exponentialRampToValueAtTime(.001, T + opt.d);
+  osc.connect(v); v.connect(out);
+  osc.start(T); osc.stop(T + opt.d + .05);
+}
+function noise(ac, out, o){
+  const opt = Object.assign({t0:0, d:.1, g:.5, fc:4000}, o);
+  const len = Math.max(1, Math.floor(ac.sampleRate * opt.d));
+  const buf = ac.createBuffer(1, len, ac.sampleRate);
+  const ch = buf.getChannelData(0);
+  for(let i = 0; i < len; i++) ch[i] = (Math.random() * 2 - 1) * (1 - i / len);
+  const src = ac.createBufferSource(); src.buffer = buf;
+  const f = ac.createBiquadFilter(); f.type = 'lowpass'; f.frequency.value = opt.fc;
+  const v = ac.createGain(); v.gain.value = opt.g;
+  src.connect(f); f.connect(v); v.connect(out);
+  src.start(ac.currentTime + opt.t0);
+}
+const DEMOS = {
+  haha(ac, out, f, sp){
+    const d = .13 / sp, gap = .17 / sp;
+    [0,1,2,3].forEach(i => tone(ac, out, {type:'sawtooth', f0:(205 - i*18)*f, f1:(150 - i*18)*f, t0:i*gap, d, g:.38}));
+    return 3*gap + d;
+  },
+  boing(ac, out, f, sp){
+    const d = .8 / sp;
+    tone(ac, out, {type:'triangle', f0:340*f, f1:60*f, d, g:.55});
+    tone(ac, out, {type:'sine', f0:680*f, f1:120*f, d:d*.8, g:.18});
+    return d;
+  },
+  airhorn(ac, out, f, sp){
+    const d = 1.05 / sp;
+    [0, 8, -6].forEach(det=>{
+      const osc = ac.createOscillator(), v = ac.createGain();
+      osc.type = 'sawtooth'; osc.detune.value = det;
+      const T = ac.currentTime;
+      osc.frequency.setValueAtTime(392*f, T);
+      osc.frequency.linearRampToValueAtTime(466*f, T + .12/sp);
+      v.gain.setValueAtTime(0.0001, T);
+      v.gain.linearRampToValueAtTime(.22, T + .02);
+      v.gain.setValueAtTime(.22, T + d - .14/sp);
+      v.gain.linearRampToValueAtTime(0.0001, T + d);
+      osc.connect(v); v.connect(out);
+      osc.start(T); osc.stop(T + d + .05);
+    });
+    return d;
+  },
+  rimshot(ac, out, f, sp){
+    noise(ac, out, {d:.09/sp, g:.6, fc:5200});
+    tone(ac, out, {type:'triangle', f0:220*f, f1:80*f, d:.12/sp, g:.5});
+    noise(ac, out, {t0:.13/sp, d:.28/sp, g:.32, fc:7500});
+    return .13/sp + .3/sp;
+  },
+  trombone(ac, out, f, sp){
+    const steps = [233, 208, 185, 156], d = .34 / sp;
+    steps.forEach((fr, i) => tone(ac, out, {type:'sawtooth', f0:fr*f, f1:fr*.94*f, t0:i*d, d:d*1.06, g:.32}));
+    return steps.length * d + .05;
+  },
+  tada(ac, out, f, sp){
+    const d = .55 / sp;
+    [523, 659, 784, 1047].forEach((fr, i) => tone(ac, out, {type:'triangle', f0:fr*f, t0:i*.06/sp, d, g:.26}));
+    noise(ac, out, {d:.4/sp, g:.1, fc:9000});
+    return .18/sp + d;
+  }
+};
+const DEMO_SET = [
+  {id:'demo-haha',     label:'Ha ha ha',     emoji:'😂', synth:'haha'},
+  {id:'demo-boing',    label:'Boing',        emoji:'🌀', synth:'boing'},
+  {id:'demo-airhorn',  label:'Airhorn',      emoji:'📯', synth:'airhorn'},
+  {id:'demo-rimshot',  label:'Rimshot',      emoji:'🥁', synth:'rimshot'},
+  {id:'demo-trombone', label:'Sad trombone', emoji:'📉', synth:'trombone'},
+  {id:'demo-tada',     label:'Ta-da',        emoji:'🎉', synth:'tada'}
+];
+function playDemo(s, btn){
+  const ac = ctx();
+  const token = ++seq, sp = state.speed, f = state.keepPitch ? 1 : sp;
+  const master = ac.createGain();
+  master.gain.value = .9;
+  master.connect(ac.destination);
+  const dur = DEMOS[s.synth](ac, master, f, sp);
+  const bar = btn.querySelector('.tape i');
+  const t0 = performance.now();
+  let raf, killed = false;
+  const end = ()=>{
+    if(killed) return; killed = true;
+    cancelAnimationFrame(raf);
+    bar.style.width = '0%';
+    try{ master.disconnect(); }catch(_){}
+    state.playing.delete(token);
+    lampSync();
+  };
+  const step = t=>{
+    const p = Math.min((t - t0) / (dur * 1000), 1);
+    bar.style.width = (p * 100) + '%';
+    if(p < 1) raf = requestAnimationFrame(step); else end();
+  };
+  raf = requestAnimationFrame(step);
+  const kill = setTimeout(end, dur * 1000 + 80);
+  state.playing.set(token, { stop: ()=>{
+    clearTimeout(kill);
+    try{ master.gain.setTargetAtTime(0.0001, ac.currentTime, .01); }catch(_){}
+    setTimeout(end, 25);
+  }});
+  lampSync();
+}
+
+boot();
+</script>
+</body>
+</html>
