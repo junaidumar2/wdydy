@@ -4,7 +4,7 @@
    - sounds/* (audio) -> cache first, with Range-request support for iOS Safari
    - everything else  -> cache first, refreshed in the background            */
 
-const CACHE = 'soundboard-v1';
+const CACHE = 'soundboard-v2';
 const CORE = ['./', './index.html', './manifest.webmanifest', './icon-180.png', './icon-512.png'];
 
 self.addEventListener('install', e => {

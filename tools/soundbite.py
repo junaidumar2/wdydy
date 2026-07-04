@@ -14,7 +14,7 @@ Typical session:
     python3 tools/soundbite.py fetch https://feeds.acast.com/public/shows/6a2be260126ad95c2367834c --episode 1
 
     # 3. Find the laugh in any player, note the time, cut it
-    python3 tools/soundbite.py clip episodes/001-*.mp3 --start 23:41.5 --end 23:44 --id dod-laugh --label "DOD laugh" --emoji 😂
+    python3 tools/soundbite.py clip episodes/001-*.mp3 --start 23:41.5 --end 23:44 --id dod-laugh --label "DOD laugh" --emoji 😂 --who david
 
     # 4. Check the board locally, then push it live
     python3 -m http.server -d . 8000        # open http://localhost:8000
@@ -24,6 +24,7 @@ Requires: python3 (stdlib only) and ffmpeg on PATH.
 """
 
 import argparse
+import datetime
 import json
 import re
 import shutil
@@ -99,6 +100,44 @@ def probe_duration(path: Path):
         return float(r.stdout.strip())
     except ValueError:
         return None
+
+
+def probe_title(path: Path):
+    """Episode title from the audio file's own tags, if present."""
+    if not shutil.which("ffprobe"):
+        return None
+    r = subprocess.run(
+        ["ffprobe", "-v", "error", "-show_entries", "format_tags=title",
+         "-of", "csv=p=0", str(path)],
+        capture_output=True, text=True)
+    t = r.stdout.strip()
+    return t or None
+
+
+def sidecar_path(audio: Path) -> Path:
+    return audio.with_name(audio.name + ".info.json")
+
+
+def read_sidecar(audio: Path) -> dict:
+    p = sidecar_path(audio)
+    if p.exists():
+        try:
+            return json.loads(p.read_text(encoding="utf-8"))
+        except json.JSONDecodeError:
+            pass
+    return {}
+
+
+def source_title_for(src: Path, override: str | None) -> str:
+    """Best available episode title: flag > fetch sidecar > file tags > filename."""
+    return (override
+            or read_sidecar(src).get("title")
+            or probe_title(src)
+            or src.stem)
+
+
+def today() -> str:
+    return datetime.date.today().isoformat()
 
 
 # -------------------------------------------------------------- manifest --
@@ -235,6 +274,11 @@ def cmd_fetch(a):
     except Exception as e:
         part.unlink(missing_ok=True)
         die(f"download failed: {e}")
+    info = {"title": label, "audio_url": url, "fetched": today()}
+    if a.episode:
+        info.update({"feed": a.source, "episode_index": a.episode, "date": ep["date"]})
+    sidecar_path(dest).write_text(
+        json.dumps(info, indent=2, ensure_ascii=False) + "\n", encoding="utf-8")
     print(f"\nSaved -> {dest}")
     print(f"Next:  python3 tools/soundbite.py clip \"{dest}\" --start MM:SS --end MM:SS --id my-clip")
 
@@ -290,11 +334,23 @@ def cmd_clip(a):
 
     run_ffmpeg_clip(src, out, start, dur, a.fade, not a.no_normalize, a.gain, codec_args)
 
+    end = start + dur
     entry = {
         "id": sound_id,
         "label": a.label or sound_id.replace("-", " "),
         "emoji": a.emoji,
         "file": f"sounds/{out.name}",
+        "who": a.who,
+        "duration_s": round(probe_duration(out) or dur, 2),
+        "added": today(),
+        "source": {
+            "title": source_title_for(src, a.source_title),
+            "file": src.name,
+            "start": fmt_secs(start),
+            "end": fmt_secs(end),
+            "start_s": round(start, 2),
+            "end_s": round(end, 2),
+        },
     }
     replaced = upsert_sound(board, entry)
     kb = out.stat().st_size // 1024
@@ -326,7 +382,12 @@ def cmd_add(a):
             die(f"ffmpeg failed:\n{r.stderr.strip()}")
 
     entry = {"id": sound_id, "label": a.label or sound_id.replace("-", " "),
-             "emoji": a.emoji, "file": f"sounds/{out.name}"}
+             "emoji": a.emoji, "file": f"sounds/{out.name}",
+             "who": a.who,
+             "duration_s": round(probe_duration(out) or 0, 2) or None,
+             "added": today(),
+             "source": {"title": source_title_for(src, a.source_title),
+                        "file": src.name}}
     replaced = upsert_sound(board, entry)
     print(f"{'Replaced' if replaced else 'Added'} cart  {entry['emoji']}  \"{entry['label']}\" -> {out.relative_to(board)}")
 
@@ -343,9 +404,14 @@ def cmd_list(a):
     for s in m["sounds"]:
         f = board / s.get("file", "")
         size = f"{f.stat().st_size // 1024:>4} KB" if f.exists() else " MISSING"
-        d = probe_duration(f) if f.exists() else None
-        dtxt = f" {fmt_secs(d)}" if d else ""
-        print(f"  {s.get('emoji','🔊')}  {s['id']:<24} {s.get('label',''):<28}{size}{dtxt}")
+        d = s.get("duration_s") or (probe_duration(f) if f.exists() else None)
+        dtxt = f" {d:.1f}s" if d else ""
+        who = (s.get("who") or "-")[:5]
+        print(f"  {s.get('emoji','🔊')}  {s['id']:<22} {s.get('label',''):<24} [{who:<5}]{size}{dtxt}")
+        src = s.get("source") or {}
+        if src.get("title"):
+            at = f"  @ {src['start']}\u2013{src['end']}" if src.get("start") else ""
+            print(f"      \u21b3 {src['title']}{at}")
 
 
 def cmd_set(a):
@@ -357,8 +423,11 @@ def cmd_set(a):
                 s["label"] = a.label
             if a.emoji:
                 s["emoji"] = a.emoji
+            if a.who:
+                s["who"] = a.who
             save_manifest(board, m)
-            print(f"Updated {a.id}: {s.get('emoji','')} \"{s.get('label','')}\"")
+            print(f"Updated {a.id}: {s.get('emoji','')} \"{s.get('label','')}\""
+                  f"  [{s.get('who','-')}]")
             return
     die(f"no cart with id '{a.id}' (see: soundbite.py list)")
 
@@ -443,6 +512,9 @@ def main():
     s.add_argument("--fade", type=int, default=25, help="fade in/out in ms (default 25)")
     s.add_argument("--gain", type=float, default=0, help="extra gain in dB")
     s.add_argument("--no-normalize", action="store_true", help="skip loudness normalization")
+    s.add_argument("--who", choices=["david", "max", "both", "other"],
+                   help="category zone on the board (david / max)")
+    s.add_argument("--source-title", help="episode title override (auto-detected otherwise)")
     s.set_defaults(func=cmd_clip)
 
     s = sub.add_parser("add", help="add an existing audio file as a cart")
@@ -451,15 +523,18 @@ def main():
     s.add_argument("--label")
     s.add_argument("--emoji", default="🔊")
     s.add_argument("--copy", action="store_true", help="copy as-is instead of re-encoding")
+    s.add_argument("--who", choices=["david", "max", "both", "other"])
+    s.add_argument("--source-title", help="where this audio came from")
     s.set_defaults(func=cmd_add)
 
     s = sub.add_parser("list", help="show every cart on the board")
     s.set_defaults(func=cmd_list)
 
-    s = sub.add_parser("set", help="rename a cart's label/emoji")
+    s = sub.add_parser("set", help="change a cart's label/emoji/category")
     s.add_argument("id")
     s.add_argument("--label")
     s.add_argument("--emoji")
+    s.add_argument("--who", choices=["david", "max", "both", "other"])
     s.set_defaults(func=cmd_set)
 
     s = sub.add_parser("remove", help="take a cart off the board")
@@ -476,4 +551,7 @@ def main():
 
 
 if __name__ == "__main__":
-    main()
+    try:
+        main()
+    except BrokenPipeError:
+        sys.exit(0)
