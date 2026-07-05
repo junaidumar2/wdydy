@@ -274,6 +274,23 @@ def cmd_fetch(a):
     except Exception as e:
         part.unlink(missing_ok=True)
         die(f"download failed: {e}")
+
+    # Guard: make sure we actually got audio, not a web page or a raw feed.
+    head = b""
+    try:
+        with open(dest, "rb") as fh:
+            head = fh.read(256).lstrip()
+    except OSError:
+        pass
+    if head[:1] == b"<":
+        kind = ("a podcast feed" if head[:4].lower() == b"<rss" or head[:5].lower() == b"<?xml"
+                else "a web page")
+        dest.unlink(missing_ok=True)
+        die(f"that URL returned {kind}, not an audio file.\n"
+            "  \u2022 For a podcast feed, add --episode N   (list them with: soundbite.py episodes FEED_URL)\n"
+            "  \u2022 For one file, pass a direct link to the .mp3/.m4a itself\n"
+            "  \u2022 On an episode's web page, look for its download or audio link, and QUOTE the URL")
+
     info = {"title": label, "audio_url": url, "fetched": today()}
     if a.episode:
         info.update({"feed": a.source, "episode_index": a.episode, "date": ep["date"]})
